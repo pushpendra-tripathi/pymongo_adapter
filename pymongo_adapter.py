@@ -69,7 +69,7 @@ class MongoDBService:
             return collection.create_index(keys, collation=_collation)
         return collection.create_index(keys)
 
-     def find(
+    def find(
         self,
         collection_name: str,
         query: dict,
