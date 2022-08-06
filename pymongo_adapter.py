@@ -54,25 +54,59 @@ class MongoDBService:
             _result.extend([x[0] for x in value["key"]])
         return _result
 
-    def find(
-        self, collection_name: str, query: dict, _limit: int, _skip: int = 0
-    ) -> list:
+    def create_index(
+        self, collection_name: str, keys: list, case_insensitive: bool = False
+    ) -> str:
         """
-        Returns data from the collection within the given limit and skip
+        Creates index on the collection
         """
         collection = self.connect(collection_name)
-        data = collection.find(query, {"_id": False}).skip(_skip).limit(_limit)
+        # For case insensitive indexing, collation must be set to 1 or 2
+        # https://www.mongodb.com/developer/products/mongodb/schema-design-anti-pattern-case-insensitive-query-index/
+        _collation = pymongo.collation.Collation(locale="en", strength=2)
+        keys = [(x, pymongo.ASCENDING) for x in keys]
+        if case_insensitive:
+            return collection.create_index(keys, collation=_collation)
+        return collection.create_index(keys)
+
+     def find(
+        self,
+        collection_name: str,
+        query: dict,
+        _limit: int,
+        _skip: int = 0,
+        case_insensitive: bool = False,
+    ) -> list:
+        """
+        Returns data from the collection
+        """
+        collection = self.connect(collection_name)
+        if case_insensitive:
+            _collation = pymongo.collation.Collation(locale="en", strength=2)
+            data = (
+                collection.find(query, {"_id": False})
+                .collation(_collation)
+                .limit(_limit)
+                .skip(_skip)
+            )
+        else:
+            data = collection.find(query, {"_id": False}).skip(_skip).limit(_limit)
         return json_util.dumps(data)
 
     def get_data(
-        self, collection_name: str, query: dict, page: int = 1, limit: int = None
+        self,
+        collection_name: str,
+        query: dict,
+        page: int = 1,
+        limit: int = None,
+        case_insensitive: bool = False,
     ) -> list:
         """
-        Return data from the collection in paginated format with limit and page
+        Return data from the collection in paginated format
         """
-        _skip = (page - 1) * self.limit
         limit = self.limit if limit is None else limit
-        return self.find(collection_name, query, limit, _skip)
+        _skip = (page - 1) * limit
+        return self.find(collection_name, query, limit, _skip, case_insensitive)
 
     def insert_many(self, collection_name: str, data: list) -> list:
         """
